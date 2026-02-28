@@ -1,18 +1,17 @@
 import tkinter as tk
 from tkinter import messagebox
-import copy  # Necesario para no modificar la lista original en cada algoritmo
+import copy 
 
 class DispatchApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Desarrollo de Algoritmos de Despacho")
-        self.root.minsize(500, 300)
+        self.root.minsize(800, 500)
         
         self.num_processes = 0
         self.entry_processes = []
         self.colors = ['#FF9999', '#66B2FF', '#99FF99', '#FFCC99', '#c2c2f0', '#ffb3e6', '#c2f0c2']
         
-        # Aquí guardaremos los resultados calculados de todos los algoritmos
         self.results = {} 
         self.algorithm_list = ["FIFO", "SJF"]
         self.current_alg_index = 0
@@ -99,10 +98,7 @@ class DispatchApp:
                     "original_idx": i
                 })
             
-            # --- AQUÍ OCURRE LA MAGIA: CALCULAMOS TODO ANTES DE MOSTRAR ---
             self.calculate_all_algorithms(raw_data)
-            
-            # Iniciamos mostrando el primero (FIFO)
             self.current_alg_index = 0
             self.show_results_screen()
             
@@ -114,19 +110,11 @@ class DispatchApp:
     # ==========================================
     def calculate_all_algorithms(self, data):
         self.results = {}
-        
-        # 1. FIFO
         self.results["FIFO"] = self.solve_fifo(copy.deepcopy(data))
-        
-        # 2. SJF (Shortest Job First - Non Preemptive)
         self.results["SJF"] = self.solve_sjf(copy.deepcopy(data))
-        
-        # Aquí añadirías RR o Prioridad en el futuro...
 
     def solve_fifo(self, data):
-        # Ordenar por llegada
         data.sort(key=lambda x: x['llegada'])
-        
         current_time = 0
         schedule = []
         
@@ -134,7 +122,6 @@ class DispatchApp:
             start = max(current_time, p['llegada'])
             end = start + p['rafaga']
             
-            # Cálculos de métricas
             wait_time = start - p['llegada']
             sys_time = end - p['llegada']
             
@@ -142,11 +129,12 @@ class DispatchApp:
                 "id": p['id'],
                 "start": start,
                 "end": end,
-                "llegada": p['llegada'], # Guardamos para mostrar en tabla
+                "llegada": p['llegada'],
                 "rafaga": p['rafaga'],
                 "prioridad": p['prioridad'],
                 "wait": wait_time,
                 "system": sys_time,
+                "original_idx": p['original_idx'], # IMPORTANTE: Guardamos el índice original
                 "color": self.colors[p['original_idx'] % len(self.colors)]
             })
             current_time = end
@@ -154,33 +142,25 @@ class DispatchApp:
         return schedule
 
     def solve_sjf(self, data):
-        # Algoritmo SJF (No expropiativo)
-        # 1. Ordenar inicialmente por llegada para facilitar la búsqueda
         data.sort(key=lambda x: x['llegada'])
-        
         current_time = 0
         completed = []
         schedule = []
         n = len(data)
         
         while len(completed) < n:
-            # Buscar procesos que ya llegaron y no están completados
             available = [p for p in data if p['llegada'] <= current_time and p not in completed]
             
             if not available:
-                # Si nadie ha llegado, saltar el tiempo al próximo que llega
-                # (Buscamos el mínimo tiempo de llegada de los que faltan)
                 remaining = [p for p in data if p not in completed]
                 current_time = min(remaining, key=lambda x: x['llegada'])['llegada']
                 continue
             
-            # De los disponibles, elegir el de MENOR RÁFAGA (Shortest Job)
             shortest = min(available, key=lambda x: x['rafaga'])
             
             start = current_time
             end = start + shortest['rafaga']
             
-            # Métricas
             wait_time = start - shortest['llegada']
             sys_time = end - shortest['llegada']
             
@@ -193,6 +173,7 @@ class DispatchApp:
                 "prioridad": shortest['prioridad'],
                 "wait": wait_time,
                 "system": sys_time,
+                "original_idx": shortest['original_idx'], # IMPORTANTE: Guardamos el índice original
                 "color": self.colors[shortest['original_idx'] % len(self.colors)]
             })
             
@@ -207,11 +188,9 @@ class DispatchApp:
     def show_results_screen(self):
         self._clear_screen()
         
-        # Obtener datos del algoritmo actual
         alg_name = self.algorithm_list[self.current_alg_index]
         schedule_data = self.results[alg_name]
         
-        # Contenedor Principal
         main_container = tk.Frame(self.root, padx=10, pady=10)
         main_container.pack(fill="both", expand=True)
         
@@ -223,17 +202,15 @@ class DispatchApp:
         content_frame = tk.Frame(main_container)
         content_frame.pack(fill="both", expand=True)
 
-        # === IZQUIERDA: DATOS + MÉTRICAS CALCULADAS ===
+        # === IZQUIERDA: DATOS ===
         left_frame = tk.Frame(content_frame, bd=2, relief="groove", padx=5, pady=5)
         left_frame.pack(side="left", fill="y", padx=10)
         
-        tk.Label(left_frame, text="Métricas Calculadas", font=("Arial", 12, "bold")).pack(pady=5)
+        tk.Label(left_frame, text="Métricas", font=("Arial", 12, "bold")).pack(pady=5)
         
-        # Encabezados
         h_frame = tk.Frame(left_frame)
         h_frame.pack()
-        # Añadimos W (Espera) y S (Sistema)
-        cols = ["ID", "Lleg", "Ráf", "Esp(TE)", "Sis(TS)"]
+        cols = ["ID", "Lleg", "Ráf", "Esp(W)", "Sis(T)"]
         for c in cols:
             tk.Label(h_frame, text=c, width=6, font=("Arial", 9, "bold"), bg="#eee", relief="ridge").pack(side="left")
             
@@ -243,28 +220,31 @@ class DispatchApp:
         avg_wait = 0
         avg_sys = 0
         
-        for item in schedule_data:
+        # Ordenamos visualmente la tabla de métricas por ID (P1, P2...) para que sea fácil de leer
+        # aunque el schedule esté en otro orden
+        sorted_metrics = sorted(schedule_data, key=lambda x: x['original_idx'])
+        
+        for item in sorted_metrics:
             r = tk.Frame(rows_frame)
             r.pack(pady=1)
             tk.Label(r, text=item['id'], width=6, bg=item['color']).pack(side="left")
             tk.Label(r, text=item['llegada'], width=6).pack(side="left")
             tk.Label(r, text=item['rafaga'], width=6).pack(side="left")
-            # Mostramos los cálculos
             tk.Label(r, text=item['wait'], width=6, font=("Arial", 9, "bold"), fg="#D32F2F").pack(side="left")
             tk.Label(r, text=item['system'], width=6, font=("Arial", 9, "bold"), fg="#1976D2").pack(side="left")
             
             avg_wait += item['wait']
             avg_sys += item['system']
             
-        # Promedios
-        avg_wait /= len(schedule_data)
-        avg_sys /= len(schedule_data)
+        if len(schedule_data) > 0:
+            avg_wait /= len(schedule_data)
+            avg_sys /= len(schedule_data)
         
         tk.Label(left_frame, text="-----------------").pack()
-        tk.Label(left_frame, text=f"Promedio Espera: {avg_wait:.2f}").pack()
-        tk.Label(left_frame, text=f"Promedio Sistema: {avg_sys:.2f}").pack()
+        tk.Label(left_frame, text=f"Prom. Espera: {avg_wait:.2f}").pack()
+        tk.Label(left_frame, text=f"Prom. Sistema: {avg_sys:.2f}").pack()
 
-        # === DERECHA: GANTT ESCALONADO ===
+        # === DERECHA: GANTT POR FILAS ===
         right_frame = tk.Frame(content_frame, bd=2, relief="groove", padx=5, pady=5)
         right_frame.pack(side="left", fill="both", expand=True)
         
@@ -273,7 +253,9 @@ class DispatchApp:
         row_height = 40
         top_margin = 30
         bottom_margin = 40
-        total_canvas_height = (len(schedule_data) * row_height) + top_margin + bottom_margin
+        
+        # La altura ahora depende del número total de procesos (P1, P2...), no de los pasos del schedule
+        total_canvas_height = (self.num_processes * row_height) + top_margin + bottom_margin
         
         canvas = tk.Canvas(right_frame, bg="white", height=total_canvas_height)
         canvas.pack(fill="both", expand=True, padx=10, pady=10)
@@ -282,28 +264,53 @@ class DispatchApp:
         c_width = canvas.winfo_width()
         if c_width <= 50: c_width = 400
         
-        total_time = schedule_data[-1]['end'] if schedule_data else 1
-        scale = (c_width - 60) / total_time
+        # Calcular escala de tiempo
+        # Buscamos el tiempo final máximo en el schedule
+        max_end_time = 0
+        for item in schedule_data:
+            if item['end'] > max_end_time:
+                max_end_time = item['end']
         
-        for i, item in enumerate(schedule_data):
-            x0 = 30 + (item['start'] * scale)
-            x1 = 30 + (item['end'] * scale)
-            y0 = top_margin + (i * row_height)
-            y1 = y0 + 30
+        total_time = max(max_end_time, 1) # Evitar división por cero
+        
+        # Margen izquierdo para las etiquetas "P1, P2"
+        left_margin_gantt = 40 
+        scale = (c_width - left_margin_gantt - 30) / total_time
+        
+        # 1. Dibujar las filas base y etiquetas (P1, P2...)
+        for i in range(self.num_processes):
+            y_base = top_margin + (i * row_height)
             
-            # Líneas guía
+            # Etiqueta del proceso a la izquierda
+            canvas.create_text(20, y_base + row_height/2, text=f"P{i+1}", font=("Arial", 10, "bold"))
+            
+            # Línea horizontal tenue para el carril
+            canvas.create_line(left_margin_gantt, y_base + row_height, c_width, y_base + row_height, fill="#f0f0f0")
+
+        # 2. Dibujar las barras de tiempo
+        for item in schedule_data:
+            # Usamos original_idx para determinar la FILA
+            row_idx = item['original_idx']
+            
+            x0 = left_margin_gantt + (item['start'] * scale)
+            x1 = left_margin_gantt + (item['end'] * scale)
+            
+            y0 = top_margin + (row_idx * row_height) + 5 # +5 para dar un pequeño margen superior dentro de la fila
+            y1 = y0 + 30 # Altura de la barra
+            
+            # Líneas guía verticales (opcional, para ver alineación)
             canvas.create_line(x0, top_margin, x0, total_canvas_height - 20, fill="#e0e0e0", dash=(2, 2))
             canvas.create_line(x1, top_margin, x1, total_canvas_height - 20, fill="#e0e0e0", dash=(2, 2))
             
-            # Barra
+            # Barra del proceso
             canvas.create_rectangle(x0, y0, x1, y1, fill=item['color'], outline="black")
-            canvas.create_text((x0 + x1)/2, (y0 + y1)/2, text=item['id'], font=("Arial", 9, "bold"))
             
-            # Eje X
+            # Tiempos (inicio y fin)
             canvas.create_text(x0, total_canvas_height - 10, text=str(item['start']), font=("Arial", 8))
             canvas.create_text(x1, total_canvas_height - 10, text=str(item['end']), font=("Arial", 8))
 
-        canvas.create_line(30, total_canvas_height - 25, c_width - 30, total_canvas_height - 25, width=2)
+        # Línea base del eje X
+        canvas.create_line(left_margin_gantt, total_canvas_height - 25, c_width - 10, total_canvas_height - 25, width=2)
 
         # === NAVEGACIÓN ===
         nav_frame = tk.Frame(main_container)
@@ -312,7 +319,6 @@ class DispatchApp:
         btn_prev = tk.Button(nav_frame, text="< Datos", width=15, command=self.create_table_screen)
         btn_prev.pack(side="left", padx=10)
         
-        # Lógica del botón siguiente
         is_last = self.current_alg_index == len(self.algorithm_list) - 1
         btn_text = "Ver Comparativa >" if is_last else "Siguiente Algoritmo >"
         btn_cmd = self.show_comparison if is_last else self.next_algorithm
@@ -326,7 +332,6 @@ class DispatchApp:
 
     def show_comparison(self):
         messagebox.showinfo("Info", "¡Aquí implementaremos la tabla comparativa final en el siguiente paso!")
-        # Aquí crearías la pantalla final con self.results['FIFO'] y self.results['SJF']
 
     def _clear_screen(self):
         for widget in self.root.winfo_children():
