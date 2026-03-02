@@ -8,13 +8,13 @@ import copy
 BASE_SIZE = 14
 
 THEME = {
-    "bg_window": "#eceff1",       
+    "bg_window": "#E7F9E3",       
     "bg_card": "#ffffff",         
     "fg_text": "#37474f",         
-    "fg_header": "#263238",       
-    "accent": "#455a64",          
+    "fg_header": "#0B0E0F",       
+    "accent": "#33673b",          
     "btn_primary": "#37474f",     
-    "btn_action": "#0277bd",      
+    "btn_action": "#019a1f",      
     "btn_success": "#2e7d32",     
     "btn_text": "#ffffff",        
     "entry_bg": "#ffffff",        
